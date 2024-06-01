@@ -1,0 +1,152 @@
+_schema-version: "3.2"
+ID: maintainance-tickets-cap
+description: A simple CAP project.
+version: 1.0.0-SNAPSHOT
+modules:
+  - name: maintainance-tickets-cap-srv
+    type: java
+    path: srv
+    properties:
+      JBP_CONFIG_COMPONENTS: "jres: ['com.sap.xs.java.buildpack.jre.SAPMachineJRE']"
+      JBP_CONFIG_SAP_MACHINE_JRE: "{ version: 17.+ }"
+      SPRING_PROFILES_ACTIVE: cloud,sandbox
+    requires:
+      - name: maintainance-tickets-cap-auth
+      - name: maintainance-tickets-cap-db
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+    parameters:
+      buildpack: sap_java_buildpack_jakarta
+      readiness-health-check-http-endpoint: /
+      readiness-health-check-type: http
+    build-parameters:
+      build-result: target/*-exec.jar
+      builder: custom
+      commands:
+        - mvn clean package -DskipTests=true
+  - name: maintainance-tickets-cap-db-deployer
+    type: hdb
+    path: db
+    requires:
+      - name: maintainance-tickets-cap-db
+    parameters:
+      buildpack: nodejs_buildpack
+    build-parameters:
+      builder: custom
+      commands:
+        - npm run build
+  - name: maintainance-tickets-cap-app-content
+    type: com.sap.application.content
+    path: .
+    requires:
+      - name: maintainance-tickets-cap-repo-host
+        parameters:
+          content-target: true
+    build-parameters:
+      build-result: resources
+      requires:
+        - artifacts:
+            - aeskandaruiadminoverview.zip
+          name: aeskandaruiadminoverview
+          target-path: resources/
+  - name: aeskandaruiadminoverview
+    type: html5
+    path: app/admin-overview
+    build-parameters:
+      build-result: dist
+      builder: custom
+      commands:
+        - npm install
+        - npm run build:cf
+      supported-platforms: []
+  - name: maintainance-tickets-cap-dest-content
+    type: com.sap.application.content
+    requires:
+      - name: srv-api
+      - name: maintainance-tickets-cap-destination-service
+        parameters:
+          content-target: true
+      - name: maintainance-tickets-cap-repo-host
+        parameters:
+          service-key:
+            name: maintainance-tickets-cap-repo-host-key
+      - name: maintainance-tickets-cap-auth
+        parameters:
+          service-key:
+            name: maintainance-tickets-cap-auth-key
+    parameters:
+      content:
+        instance:
+          destinations:
+            - Name: maintainance-tickets-cap-srv-api
+              Authentication: OAuth2UserTokenExchange
+              TokenServiceInstanceName: maintainance-tickets-cap-auth
+              TokenServiceKeyName: maintainance-tickets-cap-auth-key
+              URL: ~{srv-api/srv-url}
+              sap.cloud.service: maintainance-tickets-cap
+            - Name: maintainance-tickets-cap_repo_host
+              ServiceInstanceName: maintainance-tickets-cap-html5-srv
+              ServiceKeyName: maintainance-tickets-cap-repo-host-key
+              sap.cloud.service: maintainance-tickets-cap
+            - Name: maintainance-tickets-cap_auth
+              Authentication: OAuth2UserTokenExchange
+              ServiceInstanceName: maintainance-tickets-cap-auth
+              ServiceKeyName: maintainance-tickets-cap-auth-key
+              sap.cloud.service: maintainance-tickets-cap
+          existing_destinations_policy: update
+    build-parameters:
+      no-source: true
+resources:
+  - name: maintainance-tickets-cap-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      config:
+        tenant-mode: dedicated
+        xsappname: maintainance-tickets-cap-${org}-${space}
+      path: ./xs-security.json
+      service: xsuaa
+      service-plan: application
+  - name: maintainance-tickets-cap-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+  - name: maintainance-tickets-cap-repo-host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-name: maintainance-tickets-cap-html5-srv
+      service-plan: app-host
+  - name: maintainance-tickets-cap-destination-service
+    type: org.cloudfoundry.managed-service
+    parameters:
+      config:
+        HTML5Runtime_enabled: true
+        init_data:
+          instance:
+            destinations:
+              - Authentication: NoAuthentication
+                Name: ui5
+                ProxyType: Internet
+                Type: HTTP
+                URL: https://ui5.sap.com
+            existing_destinations_policy: update
+        version: 1.0.0
+      service: destination
+      service-name: maintainance-tickets-cap-destination-service
+      service-plan: lite
+  - name: maintainance-tickets-cap-connectivity
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: connectivity
+      service-plan: lite
+  - name: maintainance-tickets-cap-connectivity
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: connectivity
+      service-plan: lite
+parameters:
+  deploy_mode: html5-repo
+  enable-parallel-deployments: true
