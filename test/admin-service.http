@@ -1,0 +1,14 @@
+@server=http://localhost:8080
+@service=/odata/v4/admin
+
+####
+GET {{server}}{{service}}/MaintainanceItem
+
+####
+POST {{server}}{{service}}/MaintainanceItem
+Content-Type: application/json
+
+{
+    "s4Id": "customer101",
+    "problemDescription": "our System is down, do you even care??  ¯\\_(ツ)_//¯ "
+}41 
