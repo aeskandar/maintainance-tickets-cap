@@ -142,11 +142,6 @@ resources:
     parameters:
       service: connectivity
       service-plan: lite
-  - name: maintainance-tickets-cap-connectivity
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: connectivity
-      service-plan: lite
 parameters:
   deploy_mode: html5-repo
   enable-parallel-deployments: true
